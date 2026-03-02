@@ -34,7 +34,7 @@ import json_to_excel
 temp_dir = "temp_files"
 os.makedirs(temp_dir, exist_ok=True)
 
-def gradio_interface(file):
+def gradio_interface(file, sort_by_unicode):
     """Gradio接口函数"""
     if file is None:
         return None, "请先上传文件", None
@@ -49,12 +49,12 @@ def gradio_interface(file):
         # 根据文件类型选择对应的处理脚本
         if file_ext == '.txt':
             print(f"处理TXT文件：{file_path}")
-            success = txt_to_excel.txt_to_excel(file_path, temp_excel_path)
+            success = txt_to_excel.txt_to_excel(file_path, temp_excel_path, sort_by_unicode)
             if not success:
                 return None, "错误：处理TXT文件时发生错误", None
         elif file_ext == '.json':
             print(f"处理JSON文件：{file_path}")
-            success = json_to_excel.json_to_excel(file_path, temp_excel_path)
+            success = json_to_excel.json_to_excel(file_path, temp_excel_path, sort_by_unicode)
             if not success:
                 return None, "错误：处理JSON文件时发生错误", None
         else:
@@ -106,6 +106,7 @@ with gr.Blocks(title="文档转Excel工具") as app:
     with gr.Row():
         with gr.Column(scale=1):
             file_input = gr.File(label="上传文件", file_types=[".txt", ".json"])
+            sort_checkbox = gr.Checkbox(label="按Unicode编码对字符串排序", value=False)
             convert_btn = gr.Button("转换", variant="primary")
             clear_btn = gr.Button("清理缓存", variant="secondary")
             info_output = gr.Textbox(label="转换信息", lines=5, interactive=False)
@@ -118,7 +119,7 @@ with gr.Blocks(title="文档转Excel工具") as app:
     # 设置转换按钮的点击事件
     convert_btn.click(
         fn=gradio_interface,
-        inputs=file_input,
+        inputs=[file_input, sort_checkbox],
         outputs=[preview_output, info_output, excel_output]
     )
     
@@ -131,7 +132,7 @@ with gr.Blocks(title="文档转Excel工具") as app:
     # 也支持文件上传后自动转换
     file_input.change(
         fn=gradio_interface,
-        inputs=file_input,
+        inputs=[file_input, sort_checkbox],
         outputs=[preview_output, info_output, excel_output]
     )
     
@@ -150,10 +151,13 @@ with gr.Blocks(title="文档转Excel工具") as app:
       - 字典格式：`{"column1": [value1, value2, ...], "column2": [...], ...}`
     
     **转换规则：**
-    - Sheet1：原始数据
-    - Sheet2：按第1列降序排序后的数据
-    - Sheet3：按第2列降序排序后的数据
-    - 以此类推
+    - 原始数据：原始数据
+    - 按列名降序：按各列降序排序后的数据（每个列名对应一个工作表）
+    
+    **Unicode排序功能：**
+    - 勾选"按Unicode编码对字符串排序"选项后，系统会为每个字符串列添加一个新列
+    - 新列名格式为"原列名_unicode_sort"，包含按Unicode编码升序排序的序号
+    - 支持识别和排序各种Unicode字符，包括中文、英文、数字和特殊字符
     """)
 
 if __name__ == "__main__":

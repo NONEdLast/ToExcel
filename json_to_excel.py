@@ -89,7 +89,19 @@ def extract_cell_value(cell_data):
             return cell_data  # 可能是函数定义
     return cell_data
 
-def json_to_excel(json_file_path, output_excel_path="output.json.xlsx"):
+def sort_strings_by_unicode(strings):
+    """按Unicode编码对字符串进行排序
+    
+    Args:
+        strings: 字符串列表
+    
+    Returns:
+        按Unicode编码升序排序后的字符串列表
+    """
+    # 使用Python的默认排序，它会自动按Unicode编码排序
+    return sorted(strings)
+
+def json_to_excel(json_file_path, output_excel_path="output.json.xlsx", sort_by_unicode=False):
     try:
         # 尝试打开并读取JSON文件
         try:
@@ -220,6 +232,22 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx"):
         # 使用处理后的DataFrame
         df = calculated_df
         
+        # 如果启用了Unicode排序，对所有字符串列进行排序
+        if sort_by_unicode:
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    # 提取非空字符串值
+                    string_values = df[col].dropna().astype(str)
+                    if not string_values.empty:
+                        # 按Unicode编码排序
+                        sorted_values = sort_strings_by_unicode(string_values)
+                        # 创建映射字典
+                        value_map = {v: i for i, v in enumerate(sorted_values)}
+                        # 创建新列名
+                        unicode_sort_col = f"{col}_unicode_sort"
+                        # 添加排序后的列
+                        df[unicode_sort_col] = df[col].apply(lambda x: value_map.get(str(x), -1) if pd.notna(x) and not isinstance(x, dict) else x)
+        
         # 处理输出文件路径
         if os.path.exists(output_excel_path):
             base_name, ext = os.path.splitext(output_excel_path)
@@ -234,14 +262,14 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx"):
         try:
             with pd.ExcelWriter(output_excel_path, engine='openpyxl') as writer:
                 # 写入原始表格到sheet1
-                df.to_excel(writer, sheet_name='Sheet1', index=False)
+                df.to_excel(writer, sheet_name='原始数据', index=False)
                 
                 # 为每一列创建一个排序后的sheet
                 for col_idx, col_name in enumerate(df.columns):
                     # 按当前列从大到小排序，保持表头
                     sorted_df = df.sort_values(by=col_name, ascending=False)
-                    # 写入到新的sheet，从Sheet2开始
-                    sheet_name = f'Sheet{col_idx + 2}'
+                    # 写入到新的sheet，使用更具描述性的名称
+                    sheet_name = f'按{col_name}降序'
                     sorted_df.to_excel(writer, sheet_name=sheet_name, index=False)
         except PermissionError:
             print(f"错误：无法写入文件 {output_excel_path}，权限不足！")
@@ -251,17 +279,17 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx"):
             return False
         
         print(f"转换完成！结果已保存到 {output_excel_path}")
-        print(f"原始数据保存在 Sheet1")
+        print(f"原始数据保存在 '原始数据'")
         for col_idx, col_name in enumerate(df.columns):
-            print(f"按 {col_name} 列降序排序后的数据保存在 Sheet{col_idx + 2}")
+            print(f"按 {col_name} 列降序排序后的数据保存在 '按{col_name}降序'")
         return True
     except Exception as e:
         print(f"错误：处理文件时发生未知错误，原因：{str(e)}")
         return False
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("使用方法：python json_to_excel.py <json文件路径>")
+    if len(sys.argv) < 2 or len(sys.argv) > 4:
+        print("使用方法：python json_to_excel.py <json文件路径> [输出Excel路径] [--sort-by-unicode]")
         sys.exit(1)
     
     json_file = sys.argv[1]
@@ -269,6 +297,14 @@ if __name__ == "__main__":
         print(f"错误：文件 {json_file} 不存在！")
         sys.exit(1)
     
-    success = json_to_excel(json_file)
+    output_path = "output.json.xlsx"
+    if len(sys.argv) >= 3 and sys.argv[2] != "--sort-by-unicode":
+        output_path = sys.argv[2]
+    
+    sort_by_unicode = False
+    if "--sort-by-unicode" in sys.argv:
+        sort_by_unicode = True
+    
+    success = json_to_excel(json_file, output_path, sort_by_unicode)
     if not success:
         sys.exit(1)
