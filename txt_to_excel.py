@@ -20,7 +20,7 @@ def sort_strings_by_unicode(strings):
     # 使用Python的默认排序，它会自动按Unicode编码排序
     return sorted(strings)
 
-def txt_to_excel(txt_file_path, output_excel_path="output.xlsx", sort_by_unicode=False):
+def txt_to_excel(txt_file_path, output_excel_path="output.xlsx", sort_by_unicode=False, detect_header=True):
     try:
         # 尝试打开文件以检查权限
         with open(txt_file_path, 'r') as f:
@@ -33,13 +33,18 @@ def txt_to_excel(txt_file_path, output_excel_path="output.xlsx", sort_by_unicode
         return False
     
     try:
-        # 读取txt文件，自动检测分隔符和表头
-        try:
-            # 尝试将第一行作为表头读取
-            df = pd.read_csv(txt_file_path, sep=None, engine='python', header=0)
-            has_header = True
-        except Exception as e:
-            # 如果读取失败，尝试不使用表头读取
+        # 读取txt文件，自动检测分隔符
+        if detect_header:
+            try:
+                # 尝试将第一行作为表头读取
+                df = pd.read_csv(txt_file_path, sep=None, engine='python', header=0)
+                has_header = True
+            except Exception as e:
+                # 如果读取失败，尝试不使用表头读取
+                df = pd.read_csv(txt_file_path, sep=None, engine='python', header=None)
+                has_header = False
+        else:
+            # 不检测表头，将所有行作为数据读取
             df = pd.read_csv(txt_file_path, sep=None, engine='python', header=None)
             has_header = False
         
@@ -99,8 +104,9 @@ def txt_to_excel(txt_file_path, output_excel_path="output.xlsx", sort_by_unicode
         return False
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or len(sys.argv) > 4:
-        print("使用方法：python txt_to_excel.py <txt文件路径> [输出Excel路径] [--sort-by-unicode]")
+    # 解析命令行参数
+    if len(sys.argv) < 2:
+        print("使用方法：python txt_to_excel.py <txt文件路径> [输出Excel路径] [--detect-header|--no-detect-header] [--sort-by-unicode]")
         sys.exit(1)
     
     txt_file = sys.argv[1]
@@ -108,14 +114,29 @@ if __name__ == "__main__":
         print(f"错误：文件 {txt_file} 不存在！")
         sys.exit(1)
     
+    # 设置默认参数
     output_path = "output.xlsx"
-    if len(sys.argv) >= 3 and sys.argv[2] != "--sort-by-unicode":
-        output_path = sys.argv[2]
-    
+    detect_header = True
     sort_by_unicode = False
-    if "--sort-by-unicode" in sys.argv:
-        sort_by_unicode = True
     
-    success = txt_to_excel(txt_file, output_path, sort_by_unicode)
+    # 处理命令行参数
+    arg_index = 2
+    while arg_index < len(sys.argv):
+        arg = sys.argv[arg_index]
+        if arg == "--detect-header":
+            detect_header = True
+        elif arg == "--no-detect-header":
+            detect_header = False
+        elif arg == "--sort-by-unicode":
+            sort_by_unicode = True
+        elif arg_index == 2:  # 第一个非选项参数应该是输出路径
+            output_path = arg
+        else:
+            print(f"未知参数：{arg}")
+            print("使用方法：python txt_to_excel.py <txt文件路径> [输出Excel路径] [--detect-header|--no-detect-header] [--sort-by-unicode]")
+            sys.exit(1)
+        arg_index += 1
+    
+    success = txt_to_excel(txt_file, output_path, sort_by_unicode, detect_header)
     if not success:
         sys.exit(1)

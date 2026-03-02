@@ -34,7 +34,7 @@ import json_to_excel
 temp_dir = "temp_files"
 os.makedirs(temp_dir, exist_ok=True)
 
-def gradio_interface(file, sort_by_unicode):
+def gradio_interface(file, detect_header, sort_by_unicode):
     """Gradio接口函数"""
     if file is None:
         return None, "请先上传文件", None
@@ -49,7 +49,7 @@ def gradio_interface(file, sort_by_unicode):
         # 根据文件类型选择对应的处理脚本
         if file_ext == '.txt':
             print(f"处理TXT文件：{file_path}")
-            success = txt_to_excel.txt_to_excel(file_path, temp_excel_path, sort_by_unicode)
+            success = txt_to_excel.txt_to_excel(file_path, temp_excel_path, sort_by_unicode, detect_header)
             if not success:
                 return None, "错误：处理TXT文件时发生错误", None
         elif file_ext == '.json':
@@ -106,6 +106,7 @@ with gr.Blocks(title="文档转Excel工具") as app:
     with gr.Row():
         with gr.Column(scale=1):
             file_input = gr.File(label="上传文件", file_types=[".txt", ".json"])
+            detect_header_checkbox = gr.Checkbox(label="检测表头", value=True)
             sort_checkbox = gr.Checkbox(label="按Unicode编码对字符串排序", value=False)
             convert_btn = gr.Button("转换", variant="primary")
             clear_btn = gr.Button("清理缓存", variant="secondary")
@@ -119,7 +120,7 @@ with gr.Blocks(title="文档转Excel工具") as app:
     # 设置转换按钮的点击事件
     convert_btn.click(
         fn=gradio_interface,
-        inputs=[file_input, sort_checkbox],
+        inputs=[file_input, detect_header_checkbox, sort_checkbox],
         outputs=[preview_output, info_output, excel_output]
     )
     
@@ -132,7 +133,7 @@ with gr.Blocks(title="文档转Excel工具") as app:
     # 也支持文件上传后自动转换
     file_input.change(
         fn=gradio_interface,
-        inputs=[file_input, sort_checkbox],
+        inputs=[file_input, detect_header_checkbox, sort_checkbox],
         outputs=[preview_output, info_output, excel_output]
     )
     
@@ -153,6 +154,10 @@ with gr.Blocks(title="文档转Excel工具") as app:
     **转换规则：**
     - 原始数据：原始数据
     - 按列名降序：按各列降序排序后的数据（每个列名对应一个工作表）
+    
+    **检测表头功能：**
+    - 勾选"检测表头"选项（默认开启）后，系统会尝试将TXT文件的第一行作为表头
+    - 取消勾选后，系统会将所有行作为数据读取，不使用表头
     
     **Unicode排序功能：**
     - 勾选"按Unicode编码对字符串排序"选项后，系统会为每个字符串列添加一个新列
