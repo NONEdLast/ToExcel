@@ -29,6 +29,7 @@ import gradio as gr
 # 导入对应的处理脚本
 import txt_to_excel
 import json_to_excel
+import excel_to_other
 
 # 设置临时文件目录
 temp_dir = "temp_files"
@@ -98,72 +99,200 @@ def clear_cache():
     except Exception as e:
         return f"清理缓存时发生错误，原因：{str(e)}"
 
-# 创建Gradio界面
-with gr.Blocks(title="文档转Excel工具") as app:
-    gr.Markdown("# 文档转Excel工具")
-    gr.Markdown("支持上传TXT和JSON文件，自动转换为Excel并提供预览")
+def excel_to_other_interface(excel_file, output_format, sheet_name):
+    """Excel转CSV/JSON的Gradio接口函数"""
+    if excel_file is None:
+        return None, "请先上传Excel文件", None
     
-    with gr.Row():
-        with gr.Column(scale=1):
-            file_input = gr.File(label="上传文件", file_types=[".txt", ".json"])
-            detect_header_checkbox = gr.Checkbox(label="检测表头", value=True)
-            sort_checkbox = gr.Checkbox(label="按Unicode编码对字符串排序", value=False)
-            convert_btn = gr.Button("转换", variant="primary")
-            clear_btn = gr.Button("清理缓存", variant="secondary")
-            info_output = gr.Textbox(label="转换信息", lines=5, interactive=False)
-            cache_info = gr.Textbox(label="缓存状态", lines=2, interactive=False)
-            excel_output = gr.File(label="下载Excel文件")
+    try:
+        excel_path = excel_file.name
+        file_ext = os.path.splitext(excel_path)[1].lower()
         
-        with gr.Column(scale=2):
-            preview_output = gr.HTML(label="表格预览")
+        if file_ext != '.xlsx' and file_ext != '.xls':
+            return None, f"错误：不支持的文件格式 {file_ext}，仅支持 .xlsx 和 .xls", None
+        
+        # 处理工作表名称/索引
+        try:
+            # 尝试将sheet_name转换为整数（如果是数字字符串）
+            sheet_name = int(sheet_name)
+        except ValueError:
+            # 如果转换失败，保留为字符串
+            pass
+        except Exception as e:
+            return None, f"错误：解析工作表名称/索引时发生错误，原因：{str(e)}", None
+        
+        # 创建临时输出文件
+        if output_format == "CSV":
+            temp_output_path = os.path.join(temp_dir, f"result_{uuid.uuid4()}.csv")
+            success = excel_to_other.excel_to_csv(excel_path, temp_output_path, sheet_name)
+        else:  # JSON
+            temp_output_path = os.path.join(temp_dir, f"result_{uuid.uuid4()}.json")
+            success = excel_to_other.excel_to_json(excel_path, temp_output_path, sheet_name)
+        
+        if not success:
+            return None, f"错误：转换Excel文件时发生错误", None
+        
+        # 生成预览
+        preview_html = f"<h2>{output_format}结果预览</h2>"
+        if output_format == "CSV":
+            # 读取CSV文件并生成预览
+            df = pd.read_csv(temp_output_path)
+            preview_html += df.head().to_html(classes='dataframe', index=False)
+        else:  # JSON
+            # 读取JSON文件并生成预览
+            with open(temp_output_path, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+            
+            # 将JSON数据转换为DataFrame以生成预览
+            df = pd.DataFrame.from_dict(json_data, orient='index')
+            preview_html += df.head().to_html(classes='dataframe')
+        
+        # 生成转换信息
+        info = f"转换完成！已将Excel文件转换为{output_format}格式。"
+        if sheet_name != 0:
+            info += f" 使用的工作表：{sheet_name}"
+        
+        return preview_html, info, temp_output_path
+    except Exception as e:
+        return None, f"错误：处理文件时发生错误，原因：{str(e)}", None
+
+# 创建Gradio界面
+with gr.Blocks(title="文档转换工具") as app:
+    gr.Markdown("# 文档转换工具")
+    gr.Markdown("支持TXT/JSON与Excel文件之间的相互转换")
     
-    # 设置转换按钮的点击事件
-    convert_btn.click(
-        fn=gradio_interface,
-        inputs=[file_input, detect_header_checkbox, sort_checkbox],
-        outputs=[preview_output, info_output, excel_output]
-    )
-    
-    # 设置清理按钮的点击事件
-    clear_btn.click(
-        fn=clear_cache,
-        outputs=cache_info
-    )
-    
-    # 也支持文件上传后自动转换
-    file_input.change(
-        fn=gradio_interface,
-        inputs=[file_input, detect_header_checkbox, sort_checkbox],
-        outputs=[preview_output, info_output, excel_output]
-    )
-    
-    # 添加使用说明
-    gr.Markdown("## 使用说明")
-    gr.Markdown("""
-    1. 点击"上传文件"按钮，选择要转换的TXT或JSON文件
-    2. 系统会自动开始转换，或点击"转换"按钮手动开始
-    3. 在右侧可以预览转换后的表格内容
-    4. 可以下载完整的Excel文件
-    
-    **支持的文件格式：**
-    - TXT：支持自动检测分隔符，自动识别表头
-    - JSON：支持两种格式：
-      - 列表格式：`[{"key1": value1, "key2": value2}, ...]`
-      - 字典格式：`{"column1": [value1, value2, ...], "column2": [...], ...}`
-    
-    **转换规则：**
-    - 原始数据：原始数据
-    - 按列名降序：按各列降序排序后的数据（每个列名对应一个工作表）
-    
-    **检测表头功能：**
-    - 勾选"检测表头"选项（默认开启）后，系统会尝试将TXT文件的第一行作为表头
-    - 取消勾选后，系统会将所有行作为数据读取，不使用表头
-    
-    **Unicode排序功能：**
-    - 勾选"按Unicode编码对字符串排序"选项后，系统会为每个字符串列添加一个新列
-    - 新列名格式为"原列名_unicode_sort"，包含按Unicode编码升序排序的序号
-    - 支持识别和排序各种Unicode字符，包括中文、英文、数字和特殊字符
-    """)
+    # 创建选项卡
+    with gr.Tabs():
+        # 第一个选项卡：TXT/JSON转Excel
+        with gr.TabItem("TXT/JSON转Excel"):
+            gr.Markdown("支持上传TXT和JSON文件，自动转换为Excel并提供预览")
+            
+            with gr.Row():
+                with gr.Column(scale=1):
+                    file_input = gr.File(label="上传文件", file_types=[".txt", ".json"])
+                    detect_header_checkbox = gr.Checkbox(label="检测表头", value=True)
+                    sort_checkbox = gr.Checkbox(label="按Unicode编码对字符串排序", value=False)
+                    convert_btn = gr.Button("转换", variant="primary")
+                    clear_btn = gr.Button("清理缓存", variant="secondary")
+                    info_output = gr.Textbox(label="转换信息", lines=5, interactive=False)
+                    cache_info = gr.Textbox(label="缓存状态", lines=2, interactive=False)
+                    excel_output = gr.File(label="下载Excel文件")
+                
+                with gr.Column(scale=2):
+                    preview_output = gr.HTML(label="表格预览")
+            
+            # 设置转换按钮的点击事件
+            convert_btn.click(
+                fn=gradio_interface,
+                inputs=[file_input, detect_header_checkbox, sort_checkbox],
+                outputs=[preview_output, info_output, excel_output]
+            )
+            
+            # 设置清理按钮的点击事件
+            clear_btn.click(
+                fn=clear_cache,
+                outputs=cache_info
+            )
+            
+            # 也支持文件上传后自动转换
+            file_input.change(
+                fn=gradio_interface,
+                inputs=[file_input, detect_header_checkbox, sort_checkbox],
+                outputs=[preview_output, info_output, excel_output]
+            )
+            
+            # 添加使用说明
+            gr.Markdown("## 使用说明")
+            gr.Markdown("""
+            1. 点击"上传文件"按钮，选择要转换的TXT或JSON文件
+            2. 系统会自动开始转换，或点击"转换"按钮手动开始
+            3. 在右侧可以预览转换后的表格内容
+            4. 可以下载完整的Excel文件
+            
+            **支持的文件格式：**
+            - TXT：支持自动检测分隔符，自动识别表头
+            - JSON：支持两种格式：
+              - 列表格式：`[{"key1": value1, "key2": value2}, ...]`
+              - 字典格式：`{"column1": [value1, value2, ...], "column2": [...], ...}`
+            
+            **转换规则：**
+            - 原始数据：原始数据
+            - 按列名降序：按各列降序排序后的数据（每个列名对应一个工作表）
+            
+            **检测表头功能：**
+            - 勾选"检测表头"选项（默认开启）后，系统会尝试将TXT文件的第一行作为表头
+            - 取消勾选后，系统会将所有行作为数据读取，不使用表头
+            
+            **Unicode排序功能：**
+            - 勾选"按Unicode编码对字符串排序"选项后，系统会为每个字符串列添加一个新列
+            - 新列名格式为"原列名_unicode_sort"，包含按Unicode编码升序排序的序号
+            - 支持识别和排序各种Unicode字符，包括中文、英文、数字和特殊字符
+            """)
+        
+        # 第二个选项卡：Excel转CSV/JSON
+        with gr.TabItem("Excel转CSV/JSON"):
+            gr.Markdown("支持上传Excel文件，转换为CSV或JSON格式")
+            
+            with gr.Row():
+                with gr.Column(scale=1):
+                    excel_input = gr.File(label="上传Excel文件", file_types=[".xlsx", ".xls"])
+                    output_format_radio = gr.Radio(
+                        label="输出格式", 
+                        choices=["CSV", "JSON"], 
+                        value="CSV"
+                    )
+                    sheet_name_input = gr.Textbox(
+                        label="工作表名称或索引（可选，默认使用第一个工作表）", 
+                        value="0", 
+                        lines=1
+                    )
+                    convert_excel_btn = gr.Button("转换", variant="primary")
+                    clear_excel_btn = gr.Button("清理缓存", variant="secondary")
+                    excel_info_output = gr.Textbox(label="转换信息", lines=5, interactive=False)
+                    excel_cache_info = gr.Textbox(label="缓存状态", lines=2, interactive=False)
+                    other_output = gr.File(label="下载转换后的文件")
+                
+                with gr.Column(scale=2):
+                    excel_preview_output = gr.HTML(label="转换结果预览")
+            
+            # 设置转换按钮的点击事件
+            convert_excel_btn.click(
+                fn=excel_to_other_interface,
+                inputs=[excel_input, output_format_radio, sheet_name_input],
+                outputs=[excel_preview_output, excel_info_output, other_output]
+            )
+            
+            # 设置清理按钮的点击事件
+            clear_excel_btn.click(
+                fn=clear_cache,
+                outputs=excel_cache_info
+            )
+            
+            # 也支持文件上传后自动转换
+            excel_input.change(
+                fn=excel_to_other_interface,
+                inputs=[excel_input, output_format_radio, sheet_name_input],
+                outputs=[excel_preview_output, excel_info_output, other_output]
+            )
+            
+            # 添加使用说明
+            gr.Markdown("## 使用说明")
+            gr.Markdown("""
+            1. 点击"上传Excel文件"按钮，选择要转换的Excel文件
+            2. 选择输出格式（CSV或JSON）
+            3. 可选：输入要转换的工作表名称或索引（默认为0，即第一个工作表）
+            4. 系统会自动开始转换，或点击"转换"按钮手动开始
+            5. 在右侧可以预览转换后的内容
+            6. 可以下载完整的转换文件
+            
+            **支持的文件格式：**
+            - Excel：支持 .xlsx 和 .xls 格式
+            - 输出格式：CSV（逗号分隔，同test_with_header.txt格式）和JSON（同test_new.json格式）
+            
+            **转换规则：**
+            - CSV：使用逗号作为分隔符，第一行作为表头（如果有）
+            - JSON：使用与test_new.json相同的格式，将每行数据转换为一个键值对
+            """)
 
 if __name__ == "__main__":
     print("启动Gradio应用...")
