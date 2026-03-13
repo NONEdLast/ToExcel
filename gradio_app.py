@@ -59,7 +59,7 @@ def gradio_interface(file, detect_header, sort_by_unicode):
             if not success:
                 return None, "错误：处理JSON文件时发生错误", None
         else:
-            return None, f"错误：不支持的文件格式 {file_ext}，仅支持 .txt 和 .json", None
+            return None, f"错误：不支持的文件格式 {file_ext}，当前仅支持 .txt 和 .json", None
         
         # 生成预览表格
         preview_html = "<h2>转换结果预览</h2>"

@@ -205,9 +205,15 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx", sort_by_
                         cell_references = []
                         for sub in func_subs:
                             if "r" in sub and "c" in sub:
-                                # 计算目标单元格的位置
-                                target_row = row_idx + sub["r"]
-                                target_col = col_idx + sub["c"]
+                                # 检查是绝对位置还是相对位置
+                                if "f" in sub and sub["f"] == "a":
+                                    # 绝对位置：直接使用r和c的值
+                                    target_row = sub["r"] - 1  # 转换为0-based索引
+                                    target_col = sub["c"] - 1  # 转换为0-based索引
+                                else:
+                                    # 相对位置：相对于当前单元格
+                                    target_row = row_idx + sub["r"]
+                                    target_col = col_idx + sub["c"]
                                 
                                 # 检查位置是否有效
                                 if 0 <= target_row < len(calculated_df) and 0 <= target_col < len(calculated_df.columns):
