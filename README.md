@@ -30,7 +30,8 @@
 
 - **Python**：核心开发语言，提供强大的数据处理能力
 - **Pandas**：用于数据结构和数据分析
-- **OpenPyXL**：用于Excel文件的读写操作
+- **OpenPyXL**：用于Excel文件的读写操作和函数计算
+- **SQLite3**：用于SQLite数据库的连接和操作
 - **Gradio**：用于构建友好的Web界面
 - **JSON**：用于数据格式处理
 
@@ -55,12 +56,22 @@
 - 支持在JSON中定义Excel函数（如SUM、AVERAGE等）
 - 生成原始数据和排序后的工作表
 
-### 3. Gradio Web界面 (gradio_app.py)
+### 3. SQLite与Excel转换 (sqlite_to_excel.py)
+实现SQLite数据库与Excel表格之间的双向转换：
+- **SQLite转Excel**：支持将整个数据库或指定表转换为Excel文件
+- **Excel转SQLite**：支持将Excel工作表转换为SQLite数据库表
+- **函数计算**：自动计算Excel中的函数并将结果存储到SQLite
+- **灵活配置**：支持选择特定表、设置Unicode排序、自定义表名等
+- **批量处理**：支持同时转换多个表
+- **安全可靠**：支持文件权限和存在性检查，提供详细的错误信息
+
+### 4. Gradio Web界面 (gradio_app.py)
 提供直观易用的可视化界面，无需命令行操作：
 - 简单的文件上传功能
-- 实时预览转换后的表格内容
+- 实时预览转换结果并下载
 - 支持对表格进行行和列的增删改操作
 - 一键下载转换好的Excel文件
+- 内置SQLite转换功能，支持数据库与Excel的双向转换
 - 内置详细的使用说明
 - 本地运行，数据不上传至云端，保护隐私
 
@@ -78,6 +89,16 @@ python txt_to_excel.py 你的文件.txt
 python json_to_excel.py 你的文件.json
 ```
 
+#### SQLite转Excel
+```bash
+python sqlite_to_excel.py --sqlite-to-excel 你的数据库.db 输出文件.xlsx
+```
+
+#### Excel转SQLite
+```bash
+python sqlite_to_excel.py --excel-to-sqlite 你的文件.xlsx 输出数据库.db
+```
+
 也可以使用批处理文件：
 ```bash
 run_json_to_excel.bat 你的文件.json
@@ -86,10 +107,28 @@ run_json_to_excel.bat 你的文件.json
 ### 2. 网页界面方式（适合快速转换）
 
 1. 双击运行 `run_gradio.bat` 文件
-2. 在浏览器中打开 `http://127.0.0.1:7860`
-3. 选择要转换的文件类型选项卡
+2. 在浏览器中打开 `http://127.0.0.1:7861`（注意：端口已从7860改为7861）
+3. 选择要转换的文件类型选项卡：
+   - TXT转Excel
+   - JSON转Excel
+   - SQLite转换（新增功能）
 4. 上传文件并点击转换按钮
-5. 查看预览结果并下载转换后的Excel文件
+5. 查看预览结果并下载转换后的文件
+
+#### SQLite转换功能使用
+
+1. 在Web界面中选择"SQLite转换"选项卡
+2. **SQLite转Excel**：
+   - 上传SQLite数据库文件（.db）
+   - 可选：输入要转换的表名（多个表用逗号分隔）
+   - 可选：勾选按Unicode排序字段名
+   - 点击"SQLite转Excel"按钮
+   - 下载生成的Excel文件
+3. **Excel转SQLite**：
+   - 上传Excel文件（.xlsx或.xls）
+   - 可选：输入要创建的表名
+   - 点击"Excel转SQLite"按钮
+   - 下载生成的SQLite数据库文件
 
 ## 常见问题解答
 
@@ -172,6 +211,7 @@ JSON转Excel工具支持在JSON中定义函数，格式如下：
 toexcel/
 ├── txt_to_excel.py         # TXT转Excel脚本
 ├── json_to_excel.py        # JSON转Excel脚本
+├── sqlite_to_excel.py      # SQLite与Excel转换脚本
 ├── gradio_app.py           # Gradio Web界面
 ├── run_json_to_excel.bat   # JSON转换运行脚本
 ├── run_gradio.bat          # Web界面运行脚本
@@ -222,6 +262,17 @@ id,name,age,salary
 - **以此类推**...
 
 ## 更新日志
+
+### 最新更新（3.26）
+- 新增**SQLite与Excel转换功能**，支持数据库与表格的双向转换
+- 实现`sqlite_to_excel.py`核心模块，提供完整的命令行支持
+- 在Gradio Web界面中新增"SQLite转换"选项卡
+- 支持将整个SQLite数据库或指定表转换为Excel文件
+- 支持将Excel工作表转换为SQLite数据库表
+- 自动计算Excel中的函数并将结果存储到SQLite
+- 支持文件权限和存在性检查，提供详细的错误信息
+- 修复Gradio端口冲突问题（将端口从7860改为7861）
+- 优化文件操作和错误处理机制
 
 ### 3.20 update
 - 新增表格修改功能，支持在Gradio界面对表格进行增、删、改操作

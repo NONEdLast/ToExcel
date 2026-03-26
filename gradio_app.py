@@ -30,6 +30,7 @@ import gradio as gr
 import txt_to_excel
 import json_to_excel
 import excel_to_other
+import sqlite_to_excel
 
 # 设置临时文件目录
 temp_dir = "temp_files"
@@ -638,6 +639,74 @@ def export_table(output_format):
     except Exception as e:
         return None, f"错误：导出表格时发生错误，原因：{str(e)}"
 
+
+def sqlite_to_excel_interface(db_file, tables, sort_by_unicode):
+    """SQLite转Excel的Gradio接口函数"""
+    if db_file is None:
+        return None, "请先上传SQLite数据库文件"
+    
+    try:
+        db_path = db_file.name
+        
+        # 创建临时Excel文件
+        temp_excel_path = os.path.join(temp_dir, f"sqlite_to_excel_{uuid.uuid4()}.xlsx")
+        
+        # 处理表格列表
+        tables_to_convert = None
+        if tables is not None and tables.strip() != "":
+            tables_to_convert = [table.strip() for table in tables.split(",")]
+        
+        # 执行转换
+        success = sqlite_to_excel.sqlite_to_excel(db_path, temp_excel_path, tables_to_convert, sort_by_unicode)
+        
+        if success:
+            # 生成转换信息
+            info = f"SQLite数据库转换为Excel成功！"
+            return temp_excel_path, info
+        else:
+            return None, "错误：SQLite转Excel失败"
+            
+    except Exception as e:
+        return None, f"错误：处理SQLite文件时发生错误，原因：{str(e)}"
+
+
+def excel_to_sqlite_interface(excel_file, table_name, sheet_name, calculate_functions):
+    """Excel转SQLite的Gradio接口函数"""
+    if excel_file is None:
+        return None, "请先上传Excel文件"
+    
+    try:
+        excel_path = excel_file.name
+        
+        # 创建临时SQLite文件
+        temp_db_path = os.path.join(temp_dir, f"excel_to_sqlite_{uuid.uuid4()}.db")
+        
+        # 处理工作表名称/索引
+        try:
+            sheet_name = int(sheet_name)
+        except ValueError:
+            # 如果转换失败，保留为字符串
+            pass
+        
+        # 执行转换
+        success = sqlite_to_excel.excel_to_sqlite(
+            excel_path, 
+            temp_db_path, 
+            table_name if table_name.strip() != "" else None, 
+            sheet_name, 
+            calculate_functions
+        )
+        
+        if success:
+            # 生成转换信息
+            info = f"Excel转换为SQLite成功！"
+            return temp_db_path, info
+        else:
+            return None, "错误：Excel转SQLite失败"
+            
+    except Exception as e:
+        return None, f"错误：处理Excel文件时发生错误，原因：{str(e)}"
+
 # 创建Gradio界面
 with gr.Blocks(title="文档转换工具") as app:
     gr.Markdown("# 文档转换工具")
@@ -1010,8 +1079,83 @@ with gr.Blocks(title="文档转换工具") as app:
             - 列名：输入要添加或删除的列的名称
             - 导出格式：支持Excel、CSV和JSON格式
             """)
+        
+        # 第五个选项卡：SQLite转换
+        with gr.TabItem("SQLite转换"):
+            gr.Markdown("支持SQLite数据库与Excel文件之间的相互转换")
+            
+            # SQLite转Excel部分
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("## SQLite转Excel")
+                    sqlite_file_input = gr.File(label="上传SQLite数据库文件", file_types=[".db"])
+                    tables_input = gr.Textbox(
+                        label="要转换的表名（可选，默认转换所有表，多个表用逗号分隔）", 
+                        placeholder="表1,表2,表3", 
+                        lines=1
+                    )
+                    sqlite_sort_checkbox = gr.Checkbox(label="按Unicode编码排序字段名", value=False)
+                    sqlite_to_excel_btn = gr.Button("SQLite转Excel", variant="primary")
+                    sqlite_to_excel_output = gr.File(label="下载Excel文件")
+                    sqlite_to_excel_info = gr.Textbox(label="转换信息", lines=3, interactive=False)
+                
+                # Excel转SQLite部分
+                with gr.Column():
+                    gr.Markdown("## Excel转SQLite")
+                    excel_to_sqlite_file_input = gr.File(label="上传Excel文件", file_types=[".xlsx", ".xls"])
+                    table_name_input = gr.Textbox(
+                        label="输出表名（可选，默认使用Excel工作表名）", 
+                        placeholder="新表名", 
+                        lines=1
+                    )
+                    excel_sheet_input = gr.Textbox(
+                        label="工作表名称或索引（默认使用第一个工作表）", 
+                        value="0", 
+                        lines=1
+                    )
+                    calculate_functions_checkbox = gr.Checkbox(label="计算Excel函数", value=True)
+                    excel_to_sqlite_btn = gr.Button("Excel转SQLite", variant="primary")
+                    excel_to_sqlite_output = gr.File(label="下载SQLite数据库文件")
+                    excel_to_sqlite_info = gr.Textbox(label="转换信息", lines=3, interactive=False)
+            
+            # 设置SQLite转Excel按钮的点击事件
+            sqlite_to_excel_btn.click(
+                fn=sqlite_to_excel_interface,
+                inputs=[sqlite_file_input, tables_input, sqlite_sort_checkbox],
+                outputs=[sqlite_to_excel_output, sqlite_to_excel_info]
+            )
+            
+            # 设置Excel转SQLite按钮的点击事件
+            excel_to_sqlite_btn.click(
+                fn=excel_to_sqlite_interface,
+                inputs=[excel_to_sqlite_file_input, table_name_input, excel_sheet_input, calculate_functions_checkbox],
+                outputs=[excel_to_sqlite_output, excel_to_sqlite_info]
+            )
+            
+            # 添加使用说明
+            gr.Markdown("## 使用说明")
+            gr.Markdown("""
+            ### SQLite转Excel
+            1. 点击"上传SQLite数据库文件"按钮，选择要转换的SQLite数据库文件(.db)
+            2. 可选：输入要转换的表名（多个表用逗号分隔，默认转换所有表）
+            3. 可选：勾选"按Unicode编码排序字段名"选项
+            4. 点击"SQLite转Excel"按钮开始转换
+            5. 下载转换后的Excel文件
+            
+            ### Excel转SQLite
+            1. 点击"上传Excel文件"按钮，选择要转换的Excel文件(.xlsx或.xls)
+            2. 可选：输入输出表名（默认使用Excel工作表名）
+            3. 可选：输入要转换的工作表名称或索引（默认为0，即第一个工作表）
+            4. 可选：勾选"计算Excel函数"选项（将计算结果存储到SQLite，默认开启）
+            5. 点击"Excel转SQLite"按钮开始转换
+            6. 下载转换后的SQLite数据库文件
+            
+            **支持的功能：**
+            - SQLite转Excel：支持转换整个数据库或指定表，支持Unicode排序
+            - Excel转SQLite：支持转换Excel文件中的指定工作表，支持计算Excel函数
+            """)
 
 if __name__ == "__main__":
     print("启动Gradio应用...")
     # 使用local模式，避免外部资源加载问题
-    app.launch(share=False, inbrowser=True, server_name="127.0.0.1", server_port=7860)
+    app.launch(share=False, inbrowser=True, server_name="127.0.0.1", server_port=7861)
