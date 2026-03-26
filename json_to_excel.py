@@ -1,11 +1,5 @@
 import sys
 import os
-
-# 添加当前目录下的lib目录到Python路径
-lib_path = os.path.join(os.path.dirname(__file__), 'lib')
-if lib_path not in sys.path:
-    sys.path.insert(0, lib_path)
-
 import pandas as pd
 import json
 import numpy as np
@@ -32,6 +26,9 @@ def calculate_function_value(func_type, cell_references):
 
 def convert_text_to_number(text):
     """将文本形式的数字转换为数字类型"""
+    if text is None:
+        return text
+    
     if not isinstance(text, str):
         return text
     
@@ -124,19 +121,29 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx", sort_by_
                 # 列表结构：[{"key1": value1, "key2": value2}, ...]
                 data_list = json_data
             elif isinstance(json_data, dict):
+                # 检查是否为SQLite导出的表结构格式
+                if "columns" in json_data and "rows" in json_data and json_data.get("type") == "table":
+                    # SQLite导出格式：包含columns和rows字段
+                    columns = json_data["columns"]
+                    rows = json_data["rows"]
+                    
+                    # 提取列名
+                    column_names = [col["name"] for col in columns]
+                    
+                    # 创建DataFrame
+                    df = pd.DataFrame(rows, columns=column_names)
                 # 检查是否为嵌套字典结构
-                if all(isinstance(v, dict) for v in json_data.values()):
+                elif all(isinstance(v, dict) for v in json_data.values()):
                     # 嵌套字典结构：{"row1": {"col1": value1, "col2": value2}, ...}
                     data_list = list(json_data.values())
+                    df = pd.DataFrame(data_list)
                 else:
                     # 字典结构：{"column1": [value1, value2, ...], "column2": [...], ...}
                     data_list = json_data
+                    df = pd.DataFrame(data_list)
             else:
                 print("错误：JSON数据结构不支持，仅支持列表或字典格式")
                 return False
-            
-            # 创建DataFrame
-            df = pd.DataFrame(data_list)
         except Exception as e:
             print(f"错误：将JSON数据转换为表格时发生错误，原因：{str(e)}")
             return False
@@ -166,6 +173,9 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx", sort_by_
                             # 保留字典值（函数定义）
                             converted_values.append(val)
                             has_dicts = True
+                        elif val is None:
+                            # 保留None值
+                            converted_values.append(None)
                         else:
                             # 尝试转换为数字
                             try:
@@ -242,17 +252,23 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx", sort_by_
         if sort_by_unicode:
             for col in df.columns:
                 if df[col].dtype == 'object':
-                    # 提取非空字符串值
-                    string_values = df[col].dropna().astype(str)
-                    if not string_values.empty:
+                    # 提取非空且非字典的值
+                    valid_values = []
+                    for val in df[col]:
+                        if pd.notna(val) and not isinstance(val, dict):
+                            valid_values.append(str(val))
+                    
+                    if valid_values:
                         # 按Unicode编码排序
-                        sorted_values = sort_strings_by_unicode(string_values)
+                        sorted_values = sort_strings_by_unicode(valid_values)
                         # 创建映射字典
                         value_map = {v: i for i, v in enumerate(sorted_values)}
                         # 创建新列名
                         unicode_sort_col = f"{col}_unicode_sort"
                         # 添加排序后的列
-                        df[unicode_sort_col] = df[col].apply(lambda x: value_map.get(str(x), -1) if pd.notna(x) and not isinstance(x, dict) else x)
+                        df[unicode_sort_col] = df[col].apply(
+                            lambda x: value_map.get(str(x), -1) if pd.notna(x) and not isinstance(x, dict) else x
+                        )
         
         # 处理输出文件路径
         if os.path.exists(output_excel_path):

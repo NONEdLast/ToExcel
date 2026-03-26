@@ -1,0 +1,53 @@
+{
+    "type": "table",
+    "database": null,
+    "name": "原始数据",
+    "withoutRowId": false,
+    "strict": false,
+    "ddl": "CREATE TABLE \"原始数据\" (\n\"id\" INTEGER,\n  \"name\" TEXT,\n  \"col1\" INTEGER,\n  \"col2\" INTEGER,\n  \"col3\" REAL\n);",
+    "columns": [
+        {
+            "name": "id",
+            "type": "INTEGER"
+        },
+        {
+            "name": "name",
+            "type": "TEXT"
+        },
+        {
+            "name": "col1",
+            "type": "INTEGER"
+        },
+        {
+            "name": "col2",
+            "type": "INTEGER"
+        },
+        {
+            "name": "col3",
+            "type": "REAL"
+        }
+    ],
+    "rows": [
+        [
+            20001,
+            "我是睡觉高手",
+            100,
+            200,
+            null
+        ],
+        [
+            20002,
+            "我是睡觉中手",
+            200,
+            100,
+            null
+        ],
+        [
+            20003,
+            "我是睡觉低手",
+            50,
+            300,
+            null
+        ]
+    ]
+}
