@@ -2,6 +2,11 @@ import sys
 import os
 import uuid
 
+# Add current directory to Python path so it can find project modules
+current_dir = os.path.dirname(__file__)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 # 首先安装依赖（如果缺少）
 try:
     import gradio
