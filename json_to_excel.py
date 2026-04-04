@@ -120,6 +120,7 @@ def json_to_excel(json_file_path, output_excel_path="output.json.xlsx", sort_by_
             if isinstance(json_data, list):
                 # 列表结构：[{"key1": value1, "key2": value2}, ...]
                 data_list = json_data
+                df = pd.DataFrame(data_list)
             elif isinstance(json_data, dict):
                 # 检查是否为SQLite导出的表结构格式
                 if "columns" in json_data and "rows" in json_data and json_data.get("type") == "table":
